@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -I./include
-LDFLAGS = -lsqlite3 -lcrypto
+LDFLAGS = -lsqlite3 -lgmssl
 
 SRC_DIR = src
 OBJ_DIR = obj
@@ -28,12 +28,18 @@ CRYPTO_TEST_TARGET = $(TEST_DIR)/crypto_test
 
 # 数据库模块测试程序
 DB_TEST_SRCS = $(SRC_DIR)/db/ecn_db_test.c \
-               $(SRC_DIR)/db/ecn_db.c
+               $(SRC_DIR)/db/ecn_db.c \
+               $(SRC_DIR)/crypto/ecn_crypto.c
 DB_TEST_OBJS = $(DB_TEST_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 DB_TEST_TARGET = $(TEST_DIR)/db_test
 
+# 服务器程序
+SERVER_SRCS = src/server/main.c src/server/ecn_server.c src/crypto/ecn_crypto.c src/db/ecn_db.c
+SERVER_OBJS = $(SERVER_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+SERVER_TARGET = $(BIN_DIR)/ecn_server
+
 # 默认目标
-all: directories $(TARGET) $(CRYPTO_TEST_TARGET) $(DB_TEST_TARGET)
+all: directories $(TARGET) $(CRYPTO_TEST_TARGET) $(DB_TEST_TARGET) $(SERVER_TARGET)
 
 # 创建必要的目录
 directories:
@@ -58,6 +64,10 @@ $(CRYPTO_TEST_TARGET): $(CRYPTO_TEST_OBJS)
 # 链接数据库测试程序
 $(DB_TEST_TARGET): $(DB_TEST_OBJS)
 	$(CC) $(DB_TEST_OBJS) -o $(DB_TEST_TARGET) $(LDFLAGS)
+
+# 链接服务器程序
+$(SERVER_TARGET): $(SERVER_OBJS)
+	$(CC) $(SERVER_OBJS) -o $(SERVER_TARGET) $(LDFLAGS)
 
 # 运行所有测试
 test: $(CRYPTO_TEST_TARGET) $(DB_TEST_TARGET)

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <string.h>
-#include <openssl/crypto.h>
 #include "../../include/ecn_crypto.h"
 
 // 打印十六进制数据
@@ -85,21 +84,21 @@ static int test_sm2(void) {
     print_hex("Public Key", public_key, 65);
     print_hex("Private Key", private_key, 32);
 
-    // 加密
-    if (ecn_sm2_encrypt((uint8_t *)test_data, data_len, public_key, ciphertext) != 0) {
-        printf("SM2 encryption failed\n");
+    // SM2加密测试
+    size_t ciphertext_len = sizeof(ciphertext);
+    if (ecn_sm2_encrypt((uint8_t *)test_data, data_len, public_key, ciphertext, &ciphertext_len) != 0) {
+        printf("SM2 encrypt failed\n");
         return -1;
     }
-
-    // 解密
-    if (ecn_sm2_decrypt(ciphertext, data_len, private_key, decrypted) != 0) {
-        printf("SM2 decryption failed\n");
+    size_t decrypted_len = sizeof(decrypted);
+    if (ecn_sm2_decrypt(ciphertext, ciphertext_len, private_key, decrypted, &decrypted_len) != 0) {
+        printf("SM2 decrypt failed\n");
         return -1;
     }
 
     print_hex("Original", (uint8_t *)test_data, data_len);
-    print_hex("Encrypted", ciphertext, data_len);
-    print_hex("Decrypted", decrypted, data_len);
+    print_hex("Encrypted", ciphertext, ciphertext_len);
+    print_hex("Decrypted", decrypted, decrypted_len);
 
     // 验证解密结果
     if (memcmp(test_data, decrypted, data_len) != 0) {
@@ -113,29 +112,19 @@ static int test_sm2(void) {
 
 int main() {
     printf("Starting crypto module tests...\n");
-
-    // 初始化OpenSSL
-    if (OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_CIPHERS | OPENSSL_INIT_ADD_ALL_DIGESTS, NULL) != 1) {
-        printf("Failed to initialize OpenSSL\n");
-        return 1;
-    }
-
     // 运行测试
     if (test_sm3() != 0) {
         printf("SM3 test failed\n");
         return 1;
     }
-
     if (test_sm4() != 0) {
         printf("SM4 test failed\n");
         return 1;
     }
-
     if (test_sm2() != 0) {
         printf("SM2 test failed\n");
         return 1;
     }
-
     printf("\nAll crypto tests passed!\n");
     return 0;
 } 

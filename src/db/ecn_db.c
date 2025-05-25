@@ -14,8 +14,10 @@ static const char *CREATE_USER_TABLE =
     "username TEXT UNIQUE NOT NULL,"
     "password_hash BLOB NOT NULL,"
     "salt BLOB NOT NULL,"
+    "public_key BLOB NOT NULL,"
+    "private_key BLOB NOT NULL,"
     "created_at INTEGER NOT NULL,"
-    "last_login INTEGER"
+    "last_login INTEGER NOT NULL"
     ");";
 
 // 创建笔记表的SQL语句
@@ -89,8 +91,8 @@ void ecn_db_close(void) {
 // 用户相关操作
 int ecn_db_user_create(ecn_user_t *user) {
     sqlite3_stmt *stmt;
-    const char *sql = "INSERT INTO users (username, password_hash, salt, created_at, last_login) "
-                     "VALUES (?, ?, ?, ?, ?);";
+    const char *sql = "INSERT INTO users (username, password_hash, salt, public_key, private_key, created_at, last_login) "
+                     "VALUES (?, ?, ?, ?, ?, ?, ?);";
     int rc;
 
     rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
@@ -101,8 +103,10 @@ int ecn_db_user_create(ecn_user_t *user) {
     sqlite3_bind_text(stmt, 1, user->username, -1, SQLITE_STATIC);
     sqlite3_bind_blob(stmt, 2, user->password_hash, 32, SQLITE_STATIC);
     sqlite3_bind_blob(stmt, 3, user->salt, 16, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 4, user->created_at);
-    sqlite3_bind_int64(stmt, 5, user->last_login);
+    sqlite3_bind_blob(stmt, 4, user->public_key, 65, SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 5, user->private_key, 32, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 6, user->created_at);
+    sqlite3_bind_int64(stmt, 7, user->last_login);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -117,7 +121,7 @@ int ecn_db_user_create(ecn_user_t *user) {
 
 int ecn_db_user_get(const char *username, ecn_user_t *user) {
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT id, username, password_hash, salt, created_at, last_login "
+    const char *sql = "SELECT id, username, password_hash, salt, public_key, private_key, created_at, last_login "
                      "FROM users WHERE username = ?;";
     int rc;
 
@@ -135,8 +139,10 @@ int ecn_db_user_get(const char *username, ecn_user_t *user) {
         user->username[31] = '\0';
         memcpy(user->password_hash, sqlite3_column_blob(stmt, 2), 32);
         memcpy(user->salt, sqlite3_column_blob(stmt, 3), 16);
-        user->created_at = sqlite3_column_int64(stmt, 4);
-        user->last_login = sqlite3_column_int64(stmt, 5);
+        memcpy(user->public_key, sqlite3_column_blob(stmt, 4), 65);
+        memcpy(user->private_key, sqlite3_column_blob(stmt, 5), 32);
+        user->created_at = sqlite3_column_int64(stmt, 6);
+        user->last_login = sqlite3_column_int64(stmt, 7);
         sqlite3_finalize(stmt);
         return 0;
     }
@@ -162,6 +168,30 @@ int ecn_db_user_update(const ecn_user_t *user) {
     sqlite3_finalize(stmt);
 
     return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+int ecn_db_user_get_by_id(uint32_t id, ecn_user_t *user) {
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT id, username, password_hash, salt, public_key, private_key, created_at, last_login "
+                      "FROM users WHERE id = ?;";
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) return -1;
+    sqlite3_bind_int(stmt, 1, id);
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        user->id = sqlite3_column_int(stmt, 0);
+        strncpy(user->username, (const char *)sqlite3_column_text(stmt, 1), sizeof(user->username));
+        memcpy(user->password_hash, sqlite3_column_blob(stmt, 2), 32);
+        memcpy(user->salt, sqlite3_column_blob(stmt, 3), 16);
+        memcpy(user->public_key, sqlite3_column_blob(stmt, 4), 65);
+        memcpy(user->private_key, sqlite3_column_blob(stmt, 5), 32);
+        user->created_at = sqlite3_column_int64(stmt, 6);
+        user->last_login = sqlite3_column_int64(stmt, 7);
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+    sqlite3_finalize(stmt);
+    return -1;
 }
 
 // 笔记相关操作

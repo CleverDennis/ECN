@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "../../include/ecn_db.h"
+#include "../../include/ecn_crypto.h"
 
 // 测试用户操作
 static int test_user_operations(void) {
@@ -16,6 +17,12 @@ static int test_user_operations(void) {
     };
 
     printf("\n=== Testing User Operations ===\n");
+
+    // 生成SM2密钥对，补全user结构体
+    if (ecn_sm2_generate_keypair(user.public_key, user.private_key) != 0) {
+        printf("Failed to generate SM2 keypair\n");
+        return -1;
+    }
 
     // 创建用户
     if (ecn_db_user_create(&user) != 0) {

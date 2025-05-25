@@ -15,6 +15,7 @@ void ecn_db_close(void);
 int ecn_db_user_create(ecn_user_t *user);
 int ecn_db_user_get(const char *username, ecn_user_t *user);
 int ecn_db_user_update(const ecn_user_t *user);
+int ecn_db_user_get_by_id(uint32_t id, ecn_user_t *user);
 
 // 笔记相关数据库操作
 int ecn_db_note_create(ecn_note_t *note);

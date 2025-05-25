@@ -1,287 +1,311 @@
 #include <string.h>
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/rand.h>
-#include <openssl/obj_mac.h>
-#include <openssl/ec.h>
-#include <openssl/bn.h>
+#include <stdlib.h>
+#include <gmssl/sm2.h>
+#include <gmssl/sm3.h>
+#include <gmssl/sm4.h>
+#include <gmssl/rand.h>
+#include <gmssl/error.h>
+#include <gmssl/sm2_z256.h>
 #include "../../include/ecn_crypto.h"
 
-// SM3哈希计算实现
-int ecn_sm3_hash(const uint8_t *data, size_t len, uint8_t hash[32]) {
-    EVP_MD_CTX *ctx;
-    unsigned int hash_len;
+// 生成随机字节
+int ecn_generate_random(uint8_t *buffer, size_t len) {
+    return rand_bytes(buffer, len) == 1 ? 0 : -1;
+}
 
-    // 创建哈希上下文
-    ctx = EVP_MD_CTX_new();
-    if (!ctx) {
+// SM2密钥对生成
+int ecn_sm2_generate_keypair(uint8_t public_key[65], uint8_t private_key[32]) {
+    SM2_KEY key;
+    if (sm2_key_generate(&key) != 1) {
         return -1;
     }
-
-    // 初始化SM3
-    if (!EVP_DigestInit_ex(ctx, EVP_sm3(), NULL)) {
-        EVP_MD_CTX_free(ctx);
-        return -1;
-    }
-
-    // 更新数据
-    if (!EVP_DigestUpdate(ctx, data, len)) {
-        EVP_MD_CTX_free(ctx);
-        return -1;
-    }
-
-    // 完成哈希计算
-    if (!EVP_DigestFinal_ex(ctx, hash, &hash_len)) {
-        EVP_MD_CTX_free(ctx);
-        return -1;
-    }
-
-    EVP_MD_CTX_free(ctx);
+    // 导出私钥
+    memcpy(private_key, key.private_key, 32);
+    // 导出公钥（未压缩格式：0x04 || x || y）
+    public_key[0] = 0x04;
+    sm2_z256_point_to_bytes(&key.public_key, public_key + 1);
     return 0;
 }
 
-// SM4-CTR模式加密实现
+// SM2加密
+int ecn_sm2_encrypt(const uint8_t *plaintext, size_t len,
+                   const uint8_t public_key[65], uint8_t *ciphertext,
+                   size_t *ciphertext_len) {
+    SM2_KEY key;
+    SM2_Z256_POINT pub;
+    // 跳过0x04前缀，导入公钥
+    if (sm2_z256_point_from_bytes(&pub, public_key + 1) != 1) {
+        return -1;
+    }
+    if (sm2_key_set_public_key(&key, &pub) != 1) {
+        return -1;
+    }
+    if (sm2_encrypt(&key, plaintext, len, ciphertext, ciphertext_len) != 1) {
+        return -1;
+    }
+    return 0;
+}
+
+// SM2解密
+int ecn_sm2_decrypt(const uint8_t *ciphertext, size_t len,
+                   const uint8_t private_key[32], uint8_t *plaintext,
+                   size_t *plaintext_len) {
+    SM2_KEY key;
+    sm2_z256_t priv;
+    memcpy(priv, private_key, 32);
+    if (sm2_key_set_private_key(&key, priv) != 1) {
+        return -1;
+    }
+    if (sm2_decrypt(&key, ciphertext, len, plaintext, plaintext_len) != 1) {
+        return -1;
+    }
+    return 0;
+}
+
+// SM3哈希计算
+int ecn_sm3_hash(const uint8_t *data, size_t len, uint8_t hash[32]) {
+    SM3_CTX ctx;
+    
+    sm3_init(&ctx);
+    sm3_update(&ctx, data, len);
+    sm3_finish(&ctx, hash);
+
+    return 0;
+}
+
+// SM4密钥生成
+int ecn_sm4_generate_key(uint8_t key[16]) {
+    return ecn_generate_random(key, 16);
+}
+
+// SM4-CTR加密
 int ecn_sm4_encrypt_ctr(const uint8_t *plaintext, size_t len,
                        const uint8_t key[16], uint8_t *ciphertext) {
-    EVP_CIPHER_CTX *ctx;
-    int outlen, tmplen;
-    uint8_t iv[16] = {0}; // 初始化向量
-
-    // 生成随机IV
-    if (!RAND_bytes(iv, sizeof(iv))) {
+    SM4_KEY sm4_key;
+    uint8_t ctr[16] = {0};
+    size_t blocks = (len + 15) / 16;
+    
+    // 生成随机IV（计数器初值）
+    if (ecn_generate_random(ctr, 16) != 0) {
         return -1;
     }
 
-    // 创建加密上下文
-    ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
-        return -1;
-    }
-
-    // 初始化SM4-CTR
-    if (!EVP_EncryptInit_ex(ctx, EVP_sm4_ctr(), NULL, key, iv)) {
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
-    }
+    // 设置密钥
+    sm4_set_encrypt_key(&sm4_key, key);
 
     // 复制IV到密文开头
-    memcpy(ciphertext, iv, 16);
+    memcpy(ciphertext, ctr, 16);
 
-    // 加密数据
-    if (!EVP_EncryptUpdate(ctx, ciphertext + 16, &outlen, plaintext, len)) {
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
+    // CTR模式加密
+    for (size_t i = 0; i < blocks; i++) {
+        uint8_t block[16] = {0};
+        uint8_t keystream[16];
+        size_t block_len = (i == blocks - 1 && len % 16) ? len % 16 : 16;
+
+        // 生成密钥流
+        sm4_encrypt(&sm4_key, ctr, keystream);
+
+        // 更新计数器
+        for (int j = 15; j >= 0; j--) {
+            if (++ctr[j]) break;
+        }
+
+        // 复制当前块
+        memcpy(block, plaintext + i * 16, block_len);
+
+        // 异或运算
+        for (size_t j = 0; j < block_len; j++) {
+            ciphertext[16 + i * 16 + j] = block[j] ^ keystream[j];
+        }
     }
 
-    // 完成加密
-    if (!EVP_EncryptFinal_ex(ctx, ciphertext + 16 + outlen, &tmplen)) {
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
-    }
-
-    EVP_CIPHER_CTX_free(ctx);
     return 0;
 }
 
-// SM4-CTR模式解密实现
+// SM4-CTR解密
 int ecn_sm4_decrypt_ctr(const uint8_t *ciphertext, size_t len,
                        const uint8_t key[16], uint8_t *plaintext) {
-    EVP_CIPHER_CTX *ctx;
-    int outlen, tmplen;
-    const uint8_t *iv = ciphertext; // IV存储在密文开头
+    if (len <= 16) return -1;  // 至少需要IV
 
-    // 检查长度
-    if (len <= 16) {
-        return -1;
+    SM4_KEY sm4_key;
+    uint8_t ctr[16];
+    size_t blocks = (len - 16 + 15) / 16;
+    
+    // 获取IV
+    memcpy(ctr, ciphertext, 16);
+
+    // 设置密钥
+    sm4_set_encrypt_key(&sm4_key, key);
+
+    // CTR模式解密（与加密相同）
+    for (size_t i = 0; i < blocks; i++) {
+        uint8_t keystream[16];
+        size_t block_len = (i == blocks - 1 && (len - 16) % 16) ? (len - 16) % 16 : 16;
+
+        // 生成密钥流
+        sm4_encrypt(&sm4_key, ctr, keystream);
+
+        // 更新计数器
+        for (int j = 15; j >= 0; j--) {
+            if (++ctr[j]) break;
+        }
+
+        // 异或运算
+        for (size_t j = 0; j < block_len; j++) {
+            plaintext[i * 16 + j] = ciphertext[16 + i * 16 + j] ^ keystream[j];
+        }
     }
 
-    // 创建解密上下文
-    ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
-        return -1;
-    }
-
-    // 初始化SM4-CTR
-    if (!EVP_DecryptInit_ex(ctx, EVP_sm4_ctr(), NULL, key, iv)) {
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
-    }
-
-    // 解密数据
-    if (!EVP_DecryptUpdate(ctx, plaintext, &outlen, ciphertext + 16, len - 16)) {
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
-    }
-
-    // 完成解密
-    if (!EVP_DecryptFinal_ex(ctx, plaintext + outlen, &tmplen)) {
-        EVP_CIPHER_CTX_free(ctx);
-        return -1;
-    }
-
-    EVP_CIPHER_CTX_free(ctx);
     return 0;
 }
 
-// SM2密钥对生成实现
-int ecn_sm2_generate_keypair(uint8_t public_key[65], uint8_t private_key[32]) {
-    EC_KEY *key = NULL;
-    const EC_GROUP *group = NULL;
-    const EC_POINT *pub_point = NULL;
-    const BIGNUM *priv_bn = NULL;
-    BN_CTX *ctx = NULL;
-    int ret = -1;
-
-    // 创建SM2密钥
-    key = EC_KEY_new_by_curve_name(NID_sm2);
-    if (!key) {
-        fprintf(stderr, "Failed to create EC_KEY\n");
-        goto cleanup;
+// 生成密码哈希（使用SM3+盐值）
+int ecn_generate_password_hash(const char *password, uint8_t salt[16],
+                             uint8_t hash[32]) {
+    // 生成随机盐值
+    if (rand_bytes(salt, 16) != 1) {
+        return -1;
     }
 
-    // 生成密钥对
-    if (!EC_KEY_generate_key(key)) {
-        fprintf(stderr, "Failed to generate key pair\n");
-        goto cleanup;
+    // 组合密码和盐值
+    size_t password_len = strlen(password);
+    uint8_t *combined = malloc(password_len + 16);
+    if (!combined) {
+        return -1;
     }
 
-    // 获取私钥
-    priv_bn = EC_KEY_get0_private_key(key);
-    if (!priv_bn) {
-        fprintf(stderr, "Failed to get private key\n");
-        goto cleanup;
-    }
+    memcpy(combined, password, password_len);
+    memcpy(combined + password_len, salt, 16);
 
-    // 获取公钥点
-    pub_point = EC_KEY_get0_public_key(key);
-    group = EC_KEY_get0_group(key);
-    if (!pub_point || !group) {
-        fprintf(stderr, "Failed to get public key point\n");
-        goto cleanup;
-    }
-
-    // 创建BN_CTX
-    ctx = BN_CTX_new();
-    if (!ctx) {
-        fprintf(stderr, "Failed to create BN_CTX\n");
-        goto cleanup;
-    }
-
-    // 导出私钥
-    if (BN_bn2binpad(priv_bn, private_key, 32) != 32) {
-        fprintf(stderr, "Failed to export private key\n");
-        goto cleanup;
-    }
-
-    // 导出公钥（未压缩格式：0x04 || x || y）
-    public_key[0] = 0x04;  // 未压缩格式标记
-    if (!EC_POINT_point2oct(group, pub_point, POINT_CONVERSION_UNCOMPRESSED,
-                           public_key, 65, ctx)) {
-        fprintf(stderr, "Failed to export public key\n");
-        goto cleanup;
-    }
-
-    ret = 0;
-
-cleanup:
-    if (ret != 0) {
-        ERR_print_errors_fp(stderr);
-    }
-    EC_KEY_free(key);
-    BN_CTX_free(ctx);
+    // 计算SM3哈希
+    int ret = ecn_sm3_hash(combined, password_len + 16, hash);
+    
+    free(combined);
     return ret;
 }
 
-// SM2加密实现
-int ecn_sm2_encrypt(const uint8_t *plaintext, size_t len,
-                   const uint8_t public_key[65], uint8_t *ciphertext) {
-    EC_KEY *key = NULL;
-    const EC_GROUP *group = NULL;
-    EC_POINT *pub_point = NULL;
+// 验证密码（使用SM3+盐值）
+int ecn_verify_password(const char *password, const uint8_t salt[16],
+                       const uint8_t stored_hash[32]) {
+    uint8_t calculated_hash[32];
+    
+    // 组合密码和盐值
+    size_t password_len = strlen(password);
+    uint8_t *combined = malloc(password_len + 16);
+    if (!combined) {
+        return -1;
+    }
+
+    memcpy(combined, password, password_len);
+    memcpy(combined + password_len, salt, 16);
+
+    // 计算SM3哈希
+    int ret = ecn_sm3_hash(combined, password_len + 16, calculated_hash);
+    free(combined);
+    
+    if (ret != 0) {
+        return -1;
+    }
+
+    // 比较哈希值
+    return memcmp(calculated_hash, stored_hash, 32) == 0 ? 0 : -1;
+}
+
+// 混合加密：使用SM2加密SM4密钥，使用SM4加密数据
+int ecn_hybrid_encrypt(const uint8_t *data, size_t data_len,
+                      const uint8_t sm2_public_key[65],
+                      uint8_t **encrypted, size_t *encrypted_len) {
+    uint8_t sm4_key[16];
+    uint8_t *encrypted_key = NULL;
+    size_t encrypted_key_len;
     int ret = -1;
 
-    // 创建SM2密钥
-    key = EC_KEY_new_by_curve_name(NID_sm2);
-    if (!key) {
-        fprintf(stderr, "Failed to create EC_KEY\n");
+    // 生成SM4密钥
+    if (ecn_sm4_generate_key(sm4_key) != 0) {
         goto cleanup;
     }
 
-    // 获取群
-    group = EC_KEY_get0_group(key);
-    if (!group) {
-        fprintf(stderr, "Failed to get group\n");
+    // 分配空间用于加密的SM4密钥
+    encrypted_key = malloc(256); // SM2加密输出的最大长度
+    if (!encrypted_key) {
         goto cleanup;
     }
 
-    // 创建公钥点
-    pub_point = EC_POINT_new(group);
-    if (!pub_point) {
-        fprintf(stderr, "Failed to create point\n");
+    // 使用SM2加密SM4密钥
+    if (ecn_sm2_encrypt(sm4_key, 16, sm2_public_key, encrypted_key, &encrypted_key_len) != 0) {
         goto cleanup;
     }
 
-    // 从字节数组导入公钥点
-    if (!EC_POINT_oct2point(group, pub_point, public_key, 65, NULL)) {
-        fprintf(stderr, "Failed to import public key\n");
+    // 分配空间用于最终的密文（加密的密钥长度 + 4字节长度 + SM4密文）
+    *encrypted_len = encrypted_key_len + 4 + data_len + 16; // +16 for SM4 IV
+    *encrypted = malloc(*encrypted_len);
+    if (!*encrypted) {
         goto cleanup;
     }
 
-    // 设置公钥
-    if (!EC_KEY_set_public_key(key, pub_point)) {
-        fprintf(stderr, "Failed to set public key\n");
+    // 写入加密的密钥长度
+    (*encrypted)[0] = (encrypted_key_len >> 24) & 0xFF;
+    (*encrypted)[1] = (encrypted_key_len >> 16) & 0xFF;
+    (*encrypted)[2] = (encrypted_key_len >> 8) & 0xFF;
+    (*encrypted)[3] = encrypted_key_len & 0xFF;
+
+    // 写入加密的密钥
+    memcpy(*encrypted + 4, encrypted_key, encrypted_key_len);
+
+    // 使用SM4加密数据
+    if (ecn_sm4_encrypt_ctr(data, data_len, sm4_key, *encrypted + 4 + encrypted_key_len) != 0) {
+        free(*encrypted);
         goto cleanup;
     }
 
-    // 加密数据
-    memcpy(ciphertext, plaintext, len);  // 临时：直接复制数据
     ret = 0;
 
 cleanup:
-    if (ret != 0) {
-        ERR_print_errors_fp(stderr);
-    }
-    EC_POINT_free(pub_point);
-    EC_KEY_free(key);
+    free(encrypted_key);
     return ret;
 }
 
-// SM2解密实现
-int ecn_sm2_decrypt(const uint8_t *ciphertext, size_t len,
-                   const uint8_t private_key[32], uint8_t *plaintext) {
-    EC_KEY *key = NULL;
-    BIGNUM *priv_bn = NULL;
+// 混合解密：使用SM2解密SM4密钥，使用SM4解密数据
+int ecn_hybrid_decrypt(const uint8_t *encrypted, size_t encrypted_len,
+                      const uint8_t sm2_private_key[32],
+                      uint8_t **decrypted, size_t *decrypted_len) {
+    uint8_t sm4_key[16];
+    size_t encrypted_key_len;
     int ret = -1;
 
-    // 创建SM2密钥
-    key = EC_KEY_new_by_curve_name(NID_sm2);
-    if (!key) {
-        fprintf(stderr, "Failed to create EC_KEY\n");
-        goto cleanup;
+    // 读取加密的密钥长度
+    if (encrypted_len < 4) {
+        return -1;
+    }
+    encrypted_key_len = (encrypted[0] << 24) | (encrypted[1] << 16) |
+                       (encrypted[2] << 8) | encrypted[3];
+
+    // 检查长度合法性
+    if (encrypted_len < 4 + encrypted_key_len + 16) { // +16 for SM4 IV
+        return -1;
     }
 
-    // 导入私钥
-    priv_bn = BN_bin2bn(private_key, 32, NULL);
-    if (!priv_bn) {
-        fprintf(stderr, "Failed to convert private key\n");
-        goto cleanup;
+    // 使用SM2解密SM4密钥
+    size_t key_len = 16;
+    if (ecn_sm2_decrypt(encrypted + 4, encrypted_key_len,
+                       sm2_private_key, sm4_key, &key_len) != 0 || key_len != 16) {
+        return -1;
     }
 
-    // 设置私钥
-    if (!EC_KEY_set_private_key(key, priv_bn)) {
-        fprintf(stderr, "Failed to set private key\n");
-        goto cleanup;
+    // 分配空间用于解密后的数据
+    *decrypted_len = encrypted_len - 4 - encrypted_key_len - 16; // -16 for SM4 IV
+    *decrypted = malloc(*decrypted_len);
+    if (!*decrypted) {
+        return -1;
     }
 
-    // 解密数据
-    memcpy(plaintext, ciphertext, len);  // 临时：直接复制数据
-    ret = 0;
-
-cleanup:
-    if (ret != 0) {
-        ERR_print_errors_fp(stderr);
+    // 使用SM4解密数据
+    if (ecn_sm4_decrypt_ctr(encrypted + 4 + encrypted_key_len,
+                           encrypted_len - 4 - encrypted_key_len,
+                           sm4_key, *decrypted) != 0) {
+        free(*decrypted);
+        return -1;
     }
-    BN_free(priv_bn);
-    EC_KEY_free(key);
-    return ret;
-} 
+
+    return 0;
+}

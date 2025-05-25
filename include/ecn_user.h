@@ -10,6 +10,8 @@ typedef struct {
     char username[32];           // 用户名
     uint8_t password_hash[32];   // SM3密码哈希
     uint8_t salt[16];           // 密码盐值
+    uint8_t public_key[65];     // SM2公钥
+    uint8_t private_key[32];    // SM2私钥（实际项目应安全存储）
     time_t created_at;          // 创建时间
     time_t last_login;          // 最后登录时间
 } ecn_user_t;
