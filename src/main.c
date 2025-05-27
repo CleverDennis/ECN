@@ -5,7 +5,7 @@
 #include "../include/ecn_note.h"
 #include "../include/ecn_audit.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused))) {
     // 初始化数据库
     if (ecn_db_init("ecn.db") != 0) {
         fprintf(stderr, "Failed to initialize database\n");

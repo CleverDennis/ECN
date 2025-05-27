@@ -15,10 +15,31 @@
 #include <gmssl/rand.h>
 
 #define MAX_BUFFER_SIZE 4096
-#define THREAD_POOL_SIZE 4
+#define DEBUG_LOG(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
+#define ERROR_LOG(fmt, ...) fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
+
+// 全局服务器实例，用于信号处理
+static ecn_server_t *g_server = NULL;
+
+// 函数声明
+static int send_response(int sock, uint8_t error_code, const void *data, size_t data_len);
+static int handle_client_message(ecn_server_t *server, int client_sock,
+                               const ecn_msg_header_t *header,
+                               const uint8_t *payload);
+static void handle_client(ecn_server_t *server, int client_sock);
+
+// 信号处理函数
+static void handle_signal(int signo) {
+    if (signo == SIGINT && g_server) {
+        printf("\nReceived signal %d, shutting down...\n", signo);
+        g_server->running = 0;
+    }
+}
 
 // 发送响应
 static int send_response(int sock, uint8_t error_code, const void *data, size_t data_len) {
+    DEBUG_LOG("Sending response with error code: %d", error_code);
+    
     ecn_msg_header_t header;
     ecn_response_t response;
     uint8_t buffer[MAX_BUFFER_SIZE];
@@ -44,13 +65,94 @@ static int send_response(int sock, uint8_t error_code, const void *data, size_t 
         total_len += data_len;
     }
 
+    DEBUG_LOG("Sending message: header size=%zu, response size=%zu, total size=%zu",
+           sizeof(header), sizeof(response), total_len);
+    DEBUG_LOG("Header: version=%d, type=%d, payload_len=%d",
+           header.version, header.type, header.payload_len);
+    
     // 发送消息
-    return send(sock, buffer, total_len, 0) == total_len ? 0 : -1;
+    ssize_t sent = send(sock, buffer, total_len, MSG_NOSIGNAL);
+    if (sent != (ssize_t)total_len) {
+        ERROR_LOG("Failed to send response: %s", strerror(errno));
+        return -1;
+    }
+    
+    DEBUG_LOG("Response sent successfully");
+    return 0;
+}
+
+// 处理客户端连接
+static void handle_client(ecn_server_t *server, int client_sock) {
+    uint8_t buffer[MAX_BUFFER_SIZE];
+    ssize_t received;
+    
+    DEBUG_LOG("Starting to handle client connection");
+    
+    while (server->running) {
+        // 接收消息头
+        DEBUG_LOG("Waiting for message header...");
+        received = recv(client_sock, buffer, sizeof(ecn_msg_header_t), 0);
+        if (received <= 0) {
+            if (received == 0) {
+                DEBUG_LOG("Client closed connection");
+            } else {
+                ERROR_LOG("Failed to receive header: %s", strerror(errno));
+            }
+            break;
+        }
+        
+        DEBUG_LOG("Received %zd bytes for header", received);
+        
+        // 解析消息头
+        ecn_msg_header_t *header = (ecn_msg_header_t *)buffer;
+        DEBUG_LOG("Message version: %d, type: %d, payload length: %d",
+               header->version, header->type, header->payload_len);
+        
+        if (header->version != ECN_PROTOCOL_VERSION) {
+            ERROR_LOG("Invalid protocol version: %d", header->version);
+            send_response(client_sock, ECN_ERR_VERSION, NULL, 0);
+            break;
+        }
+        
+        // 接收负载
+        if (header->payload_len > 0) {
+            if (header->payload_len > MAX_BUFFER_SIZE - sizeof(ecn_msg_header_t)) {
+                ERROR_LOG("Payload too large: %d", header->payload_len);
+                send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
+                break;
+            }
+            
+            DEBUG_LOG("Waiting for payload of %d bytes...", header->payload_len);
+            received = recv(client_sock, buffer + sizeof(ecn_msg_header_t), 
+                          header->payload_len, 0);
+            if (received != header->payload_len) {
+                ERROR_LOG("Failed to receive payload: expected %d bytes, got %zd bytes",
+                       header->payload_len, received);
+                break;
+            }
+            
+            DEBUG_LOG("Received complete payload");
+        }
+        
+        // 处理消息
+        DEBUG_LOG("Processing message...");
+        if (handle_client_message(server, client_sock, header, 
+                                buffer + sizeof(ecn_msg_header_t)) != 0) {
+            ERROR_LOG("Failed to handle client message");
+            break;
+        }
+    }
+    
+    DEBUG_LOG("Client connection closed");
+    close(client_sock);
 }
 
 // 处理注册请求
-static int handle_register(ecn_server_t *server, int client_sock, const uint8_t *payload, size_t len) {
+static int handle_register(ecn_server_t *server __attribute__((unused)), int client_sock, const uint8_t *payload, size_t len) {
+    DEBUG_LOG("Processing registration request, payload size: %zu", len);
+    
     if (len < sizeof(ecn_register_req_t)) {
+        ERROR_LOG("Invalid request size: %zu (expected: %zu)", len, sizeof(ecn_register_req_t));
         return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
     }
 
@@ -58,28 +160,48 @@ static int handle_register(ecn_server_t *server, int client_sock, const uint8_t 
     ecn_user_t user;
     memset(&user, 0, sizeof(user));
     strncpy(user.username, req->username, sizeof(user.username) - 1);
+    
+    DEBUG_LOG("Registering user: %s", user.username);
+    
     // 生成盐
     if (ecn_generate_random(user.salt, sizeof(user.salt)) != 0) {
+        ERROR_LOG("Failed to generate salt");
         return send_response(client_sock, ECN_ERR_SERVER, NULL, 0);
     }
+    
+    DEBUG_LOG("Salt generated successfully");
+    
     // 生成SM2密钥对
     if (ecn_sm2_generate_keypair(user.public_key, user.private_key) != 0) {
+        ERROR_LOG("Failed to generate SM2 keypair");
         return send_response(client_sock, ECN_ERR_SERVER, NULL, 0);
     }
+    
+    DEBUG_LOG("SM2 keypair generated successfully");
+    
     // 服务器端计算hash
     if (ecn_generate_password_hash(req->password, user.salt, user.password_hash) != 0) {
+        ERROR_LOG("Failed to generate password hash");
         return send_response(client_sock, ECN_ERR_SERVER, NULL, 0);
     }
+    
+    DEBUG_LOG("Password hash generated successfully");
+    
     user.created_at = time(NULL);
     user.last_login = 0;
-    if (ecn_db_user_create(&user) != 0) {
+    
+    int rc = ecn_db_user_create(&user);
+    if (rc != 0) {
+        ERROR_LOG("Failed to create user in database: %d", rc);
         return send_response(client_sock, ECN_ERR_USER_EXISTS, NULL, 0);
     }
+    
+    DEBUG_LOG("User created successfully with ID: %d", user.id);
     return send_response(client_sock, ECN_ERR_NONE, NULL, 0);
 }
 
 // 处理登录请求
-static int handle_login(ecn_server_t *server, int client_sock, const uint8_t *payload, size_t len) {
+static int handle_login(ecn_server_t *server __attribute__((unused)), int client_sock, const uint8_t *payload, size_t len) {
     if (len < sizeof(ecn_login_req_t)) {
         return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
     }
@@ -141,7 +263,7 @@ static int verify_session(const uint8_t token[64], uint32_t *user_id) {
 }
 
 // 处理创建笔记请求
-static int handle_note_create(ecn_server_t *server, int client_sock, 
+static int handle_note_create(ecn_server_t *server __attribute__((unused)), int client_sock, 
                             uint32_t user_id, const uint8_t *payload, size_t len) {
     if (len < sizeof(ecn_note_create_req_t)) {
         return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
@@ -190,56 +312,61 @@ static int handle_note_create(ecn_server_t *server, int client_sock,
 }
 
 // 处理更新笔记请求
-static int handle_note_update(const ecn_session_t *session, const ecn_note_update_req_t *req,
-                      const uint8_t *content_data, size_t content_len,
-                      ecn_response_t *resp) {
-    ecn_note_t note;
-    
+static int handle_note_update(ecn_server_t *server __attribute__((unused)), int client_sock,
+                            uint32_t user_id, const uint8_t *payload, size_t len) {
+    if (len < sizeof(ecn_note_update_req_t)) {
+        return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
+    }
+
+    const ecn_note_update_req_t *req = (const ecn_note_update_req_t *)payload;
+    const uint8_t *content_data = payload + sizeof(ecn_note_update_req_t);
+    size_t content_len = len - sizeof(ecn_note_update_req_t);
+
+    // 验证内容长度
+    if (content_len != req->content_len) {
+        return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
+    }
+
     // 获取原笔记
+    ecn_note_t note;
     if (ecn_db_note_get(req->id, &note) != 0) {
-        resp->error_code = ECN_ERR_NOT_FOUND;
-        return -1;
+        return send_response(client_sock, ECN_ERR_NOT_FOUND, NULL, 0);
     }
-    
+
     // 验证所有权
-    if (note.user_id != session->user_id) {
-        resp->error_code = ECN_ERR_AUTH_FAILED;
-        return -1;
+    if (note.user_id != user_id) {
+        return send_response(client_sock, ECN_ERR_AUTH_FAILED, NULL, 0);
     }
-    
-    // 加密新内容
-    uint8_t *new_content = malloc(content_len + 16); // +16 for IV
-    if (!new_content) {
-        resp->error_code = ECN_ERR_SERVER;
-        return -1;
+
+    // 获取用户SM2公钥
+    ecn_user_t user;
+    if (ecn_db_user_get_by_id(user_id, &user) != 0) {
+        return send_response(client_sock, ECN_ERR_SERVER, NULL, 0);
     }
-    
-    if (ecn_sm4_encrypt_ctr(content_data, content_len,
-                           note.key, new_content) != 0) {
-        free(new_content);
-        resp->error_code = ECN_ERR_SERVER;
-        return -1;
+
+    // 混合加密
+    uint8_t *encrypted = NULL;
+    size_t encrypted_len = 0;
+    if (ecn_hybrid_encrypt(content_data, content_len, user.public_key, &encrypted, &encrypted_len) != 0) {
+        return send_response(client_sock, ECN_ERR_SERVER, NULL, 0);
     }
-    
+
     // 更新笔记
     free(note.content);
-    note.content = new_content;
-    note.content_len = content_len + 16;
+    note.content = encrypted;
+    note.content_len = encrypted_len;
     note.updated_at = time(NULL);
-    
+
     if (ecn_db_note_update(&note) != 0) {
-        free(note.content);
-        resp->error_code = ECN_ERR_SERVER;
-        return -1;
+        free(encrypted);
+        return send_response(client_sock, ECN_ERR_SERVER, NULL, 0);
     }
-    
-    resp->error_code = ECN_ERR_NONE;
-    free(note.content);
-    return 0;
+
+    return send_response(client_sock, ECN_ERR_NONE, NULL, 0);
 }
 
 // 处理删除笔记请求
-static int handle_note_delete(ecn_server_t *server, int client_sock,
+static int handle_note_delete(ecn_server_t *server __attribute__((unused)), int client_sock,
                             uint32_t user_id, const uint8_t *payload, size_t len) {
     if (len != sizeof(uint32_t)) {
         return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
@@ -270,8 +397,9 @@ static int handle_note_delete(ecn_server_t *server, int client_sock,
 }
 
 // 处理获取笔记列表请求
-static int handle_note_list(ecn_server_t *server, int client_sock,
-                          uint32_t user_id, const uint8_t *payload, size_t len) {
+static int handle_note_list(ecn_server_t *server __attribute__((unused)), int client_sock,
+                          uint32_t user_id, const uint8_t *payload __attribute__((unused)), 
+                          size_t len __attribute__((unused))) {
     ecn_note_t *notes;
     size_t count;
 
@@ -313,7 +441,7 @@ static int handle_note_list(ecn_server_t *server, int client_sock,
 }
 
 // 处理获取笔记内容请求
-static int handle_note_get(ecn_server_t *server, int client_sock,
+static int handle_note_get(ecn_server_t *server __attribute__((unused)), int client_sock,
                          uint32_t user_id, const uint8_t *payload, size_t len) {
     if (len != sizeof(uint32_t)) {
         return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
@@ -369,192 +497,38 @@ static int handle_note_get(ecn_server_t *server, int client_sock,
     return ret;
 }
 
-// 更新handle_client_message函数中的switch语句
+// 处理客户端消息
 static int handle_client_message(ecn_server_t *server, int client_sock,
                                const ecn_msg_header_t *header,
                                const uint8_t *payload) {
-    // 检查会话（除了注册和登录请求）
-    ecn_session_t session;
     uint32_t user_id = 0;
-    
+
+    // 检查会话（除了注册和登录请求）
     if (header->type != ECN_MSG_REGISTER && header->type != ECN_MSG_LOGIN) {
-        if (ecn_db_session_get(header->session_token, &session) != 0) {
-            return send_response(client_sock, ECN_ERR_INVALID_TOKEN, NULL, 0);
+        if (verify_session(header->session_token, &user_id) != 0) {
+            return send_response(client_sock, ECN_ERR_INVALID_SESSION, NULL, 0);
         }
-        user_id = session.user_id;
     }
-    
-    // 处理不同类型的消息
+
+    // 根据消息类型处理
     switch (header->type) {
         case ECN_MSG_REGISTER:
             return handle_register(server, client_sock, payload, header->payload_len);
-            
-        case ECN_MSG_LOGIN: {
-            ecn_response_t *resp = (ecn_response_t *)(header + 1);
+        case ECN_MSG_LOGIN:
             return handle_login(server, client_sock, payload, header->payload_len);
-        }
-            
-        case ECN_MSG_LOGOUT:
-            if (header->payload_len == 0) {
-                ecn_db_session_delete(header->session_token);
-                return send_response(client_sock, ECN_ERR_NONE, NULL, 0);
-            }
-            break;
-
         case ECN_MSG_NOTE_CREATE:
-            if (header->payload_len < sizeof(ecn_note_create_req_t)) {
-                return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
-            }
             return handle_note_create(server, client_sock, user_id, payload, header->payload_len);
-            
         case ECN_MSG_NOTE_UPDATE:
-            if (header->payload_len < sizeof(ecn_note_update_req_t)) {
-                return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
-            }
-            return handle_note_update(&session,
-                                    (const ecn_note_update_req_t *)payload,
-                                    payload + sizeof(ecn_note_update_req_t),
-                                    header->payload_len - sizeof(ecn_note_update_req_t),
-                                    (ecn_response_t *)(header + 1));
-            
+            return handle_note_update(server, client_sock, user_id, payload, header->payload_len);
         case ECN_MSG_NOTE_DELETE:
             return handle_note_delete(server, client_sock, user_id, payload, header->payload_len);
-            
         case ECN_MSG_NOTE_LIST:
             return handle_note_list(server, client_sock, user_id, payload, header->payload_len);
-            
         case ECN_MSG_NOTE_GET:
             return handle_note_get(server, client_sock, user_id, payload, header->payload_len);
-            
         default:
             return send_response(client_sock, ECN_ERR_INVALID_REQ, NULL, 0);
     }
-
-    return -1;
-}
-
-// 处理客户端连接的工作线程函数
-static void *worker_thread(void *arg) {
-    ecn_server_t *server = (ecn_server_t *)arg;
-    uint8_t buffer[MAX_BUFFER_SIZE];
-    ssize_t bytes_read;
-    
-    while (server->running) {
-        // 检查所有客户端连接
-        pthread_mutex_lock(&server->clients_mutex);
-        for (int i = 0; i < server->config.max_clients; i++) {
-            if (server->clients[i].socket < 0) {
-                continue;
-            }
-
-            // 尝试读取消息头
-            bytes_read = recv(server->clients[i].socket, buffer,
-                            sizeof(ecn_msg_header_t), MSG_DONTWAIT);
-            
-            if (bytes_read < 0) {
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                    // 连接错误，关闭它
-                    close(server->clients[i].socket);
-                    server->clients[i].socket = -1;
-                }
-                continue;
-            }
-            
-            if (bytes_read == 0) {
-                // 客户端断开连接
-                close(server->clients[i].socket);
-                server->clients[i].socket = -1;
-                continue;
-            }
-
-            if (bytes_read < sizeof(ecn_msg_header_t)) {
-                // 消息不完整，等待更多数据
-                continue;
-            }
-
-            // 解析消息头
-            ecn_msg_header_t *header = (ecn_msg_header_t *)buffer;
-            
-            // 检查版本号
-            if (header->version != ECN_PROTOCOL_VERSION) {
-                send_response(server->clients[i].socket, ECN_ERR_INVALID_REQ, NULL, 0);
-                continue;
-            }
-
-            // 读取负载
-            if (header->payload_len > 0) {
-                if (header->payload_len > MAX_BUFFER_SIZE - sizeof(ecn_msg_header_t)) {
-                    send_response(server->clients[i].socket, ECN_ERR_INVALID_REQ, NULL, 0);
-                    continue;
-                }
-
-                bytes_read = recv(server->clients[i].socket,
-                                buffer + sizeof(ecn_msg_header_t),
-                                header->payload_len, 0);
-                
-                if (bytes_read < 0 || bytes_read != header->payload_len) {
-                    // 读取负载失败
-                    continue;
-                }
-            }
-
-            // 处理消息
-            handle_client_message(server, server->clients[i].socket,
-                                header, buffer + sizeof(ecn_msg_header_t));
-        }
-        pthread_mutex_unlock(&server->clients_mutex);
-
-        // 避免CPU占用过高
-        usleep(10000);  // 10ms
-    }
-    
-    return NULL;
-}
-
-// 接受新客户端连接的线程函数
-static void *accept_thread(void *arg) {
-    ecn_server_t *server = (ecn_server_t *)arg;
-    struct sockaddr_in client_addr;
-    socklen_t addr_len = sizeof(client_addr);
-    
-    while (server->running) {
-        // 接受新的客户端连接
-        int client_sock = accept(server->listen_sock, (struct sockaddr *)&client_addr, &addr_len);
-        if (client_sock < 0) {
-            if (errno != EINTR) {
-                perror("accept failed");
-            }
-            continue;
-        }
-        
-        // 查找空闲的客户端槽位
-        pthread_mutex_lock(&server->clients_mutex);
-        int slot = -1;
-        for (int i = 0; i < server->config.max_clients; i++) {
-            if (server->clients[i].socket == -1) {
-                slot = i;
-                break;
-            }
-        }
-        
-        if (slot >= 0) {
-            // 初始化新的客户端连接
-            server->clients[slot].socket = client_sock;
-            server->clients[slot].addr = client_addr;
-            server->clients[slot].user_id = 0;
-            memset(server->clients[slot].session_token, 0, sizeof(server->clients[slot].session_token));
-            printf("New client connected from %s:%d\n", 
-                   inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-        } else {
-            // 没有空闲槽位，关闭连接
-            close(client_sock);
-            printf("Rejected client from %s:%d (server full)\n",
-                   inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-        }
-        pthread_mutex_unlock(&server->clients_mutex);
-    }
-    
-    return NULL;
 }
 
 // 初始化服务器
@@ -565,34 +539,9 @@ int ecn_server_init(ecn_server_t *server, const ecn_server_config_t *config) {
     server->running = 0;
     server->listen_sock = -1;
     
-    // 初始化客户端数组
-    server->clients = calloc(config->max_clients, sizeof(ecn_client_t));
-    if (!server->clients) {
-        return -1;
-    }
-    for (int i = 0; i < config->max_clients; i++) {
-        server->clients[i].socket = -1;
-    }
-    
-    // 初始化互斥锁
-    if (pthread_mutex_init(&server->clients_mutex, NULL) != 0) {
-        free(server->clients);
-        return -1;
-    }
-    
-    // 创建工作线程池
-    server->worker_threads = calloc(THREAD_POOL_SIZE, sizeof(pthread_t));
-    if (!server->worker_threads) {
-        pthread_mutex_destroy(&server->clients_mutex);
-        free(server->clients);
-        return -1;
-    }
-    
     // 初始化数据库
     if (ecn_db_init(config->db_path) != 0) {
-        pthread_mutex_destroy(&server->clients_mutex);
-        free(server->worker_threads);
-        free(server->clients);
+        fprintf(stderr, "Failed to initialize database\n");
         return -1;
     }
     
@@ -602,61 +551,79 @@ int ecn_server_init(ecn_server_t *server, const ecn_server_config_t *config) {
 // 启动服务器
 void ecn_server_start(ecn_server_t *server) {
     struct sockaddr_in server_addr;
-    
-    // 创建监听socket
+    int opt = 1;
+
+    // 保存服务器实例到全局变量
+    g_server = server;
+
+    // 创建套接字
     server->listen_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server->listen_sock < 0) {
         perror("socket failed");
         return;
     }
-    
-    // 设置socket选项
-    int opt = 1;
-    if (setsockopt(server->listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+
+    // 设置套接字选项
+    if (setsockopt(server->listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         perror("setsockopt failed");
         close(server->listen_sock);
         return;
     }
-    
-    // 绑定地址和端口
+
+    // 初始化服务器地址
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(server->config.port);
-    
+
+    // 绑定地址
     if (bind(server->listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("bind failed");
         close(server->listen_sock);
         return;
     }
-    
+
     // 开始监听
     if (listen(server->listen_sock, 5) < 0) {
         perror("listen failed");
         close(server->listen_sock);
         return;
     }
-    
-    // 设置服务器状态为运行中
+
+    printf("Server listening on port %d\n", server->config.port);
+    printf("Server running. Press Ctrl+C to stop.\n");
+
+    // 设置信号处理
+    signal(SIGINT, handle_signal);
     server->running = 1;
-    
-    // 启动工作线程
-    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
-        if (pthread_create(&server->worker_threads[i], NULL, worker_thread, server) != 0) {
-            fprintf(stderr, "Failed to create worker thread %d\n", i);
-            server->running = 0;
-            return;
+
+    // 主循环
+    while (server->running) {
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        
+        // 接受新连接
+        int client_sock = accept(server->listen_sock, (struct sockaddr *)&client_addr, &addr_len);
+        if (client_sock < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            perror("accept failed");
+            break;
         }
+
+        printf("New connection from %s:%d\n", 
+               inet_ntoa(client_addr.sin_addr), 
+               ntohs(client_addr.sin_port));
+
+        // 处理客户端连接
+        handle_client(server, client_sock);
     }
-    
-    // 启动接受连接线程
-    if (pthread_create(&server->accept_thread, NULL, accept_thread, server) != 0) {
-        fprintf(stderr, "Failed to create accept thread\n");
-        server->running = 0;
-        return;
-    }
-    
-    printf("Server started on port %d\n", server->config.port);
+
+    // 清理
+    close(server->listen_sock);
+    ecn_db_close();
+    g_server = NULL;
 }
 
 // 停止服务器
@@ -674,23 +641,13 @@ void ecn_server_stop(ecn_server_t *server) {
         server->listen_sock = -1;
     }
     
-    // 等待接受连接线程结束
-    pthread_join(server->accept_thread, NULL);
-    
     // 等待所有工作线程结束
-    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
-        pthread_join(server->worker_threads[i], NULL);
-    }
-    
-    // 关闭所有客户端连接
-    pthread_mutex_lock(&server->clients_mutex);
     for (int i = 0; i < server->config.max_clients; i++) {
         if (server->clients[i].socket >= 0) {
             close(server->clients[i].socket);
             server->clients[i].socket = -1;
         }
     }
-    pthread_mutex_unlock(&server->clients_mutex);
     
     printf("Server stopped\n");
 }
@@ -701,9 +658,6 @@ void ecn_server_cleanup(ecn_server_t *server) {
     ecn_server_stop(server);
     
     // 清理资源
-    pthread_mutex_destroy(&server->clients_mutex);
-    free(server->worker_threads);
-    free(server->clients);
     ecn_db_close();
     
     memset(server, 0, sizeof(ecn_server_t));

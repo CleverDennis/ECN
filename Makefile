@@ -1,5 +1,7 @@
 CC = gcc
+CXX = g++
 CFLAGS = -Wall -Wextra -I./include
+CXXFLAGS = -Wall -Wextra -I./include
 LDFLAGS = -lsqlite3 -lgmssl
 
 SRC_DIR = src
@@ -7,88 +9,78 @@ OBJ_DIR = obj
 BIN_DIR = bin
 TEST_DIR = $(BIN_DIR)/tests
 
-# 源文件和目标文件
-SRCS = $(wildcard $(SRC_DIR)/*.c) \
-       $(wildcard $(SRC_DIR)/crypto/*.c) \
-       $(wildcard $(SRC_DIR)/db/*.c)
-OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+# 源文件
+SERVER_SRCS = $(SRC_DIR)/server/main.c \
+              $(SRC_DIR)/server/ecn_server.c \
+              $(SRC_DIR)/crypto/ecn_crypto.c \
+              $(SRC_DIR)/db/ecn_db.c
 
-# 主程序
-MAIN_SRCS = $(SRC_DIR)/main.c \
-            $(SRC_DIR)/crypto/ecn_crypto.c \
-            $(SRC_DIR)/db/ecn_db.c
-MAIN_OBJS = $(MAIN_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-TARGET = $(BIN_DIR)/ecn
-
-# 加密模块测试程序
 CRYPTO_TEST_SRCS = $(SRC_DIR)/crypto/ecn_crypto_test.c \
                    $(SRC_DIR)/crypto/ecn_crypto.c
-CRYPTO_TEST_OBJS = $(CRYPTO_TEST_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-CRYPTO_TEST_TARGET = $(TEST_DIR)/crypto_test
 
-# 数据库模块测试程序
 DB_TEST_SRCS = $(SRC_DIR)/db/ecn_db_test.c \
                $(SRC_DIR)/db/ecn_db.c \
                $(SRC_DIR)/crypto/ecn_crypto.c
+
+# 目标文件
+SERVER_OBJS = $(SERVER_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+CRYPTO_TEST_OBJS = $(CRYPTO_TEST_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 DB_TEST_OBJS = $(DB_TEST_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+
+# 可执行文件
+SERVER_TARGET = $(BIN_DIR)/ecn_server
+CRYPTO_TEST_TARGET = $(TEST_DIR)/crypto_test
 DB_TEST_TARGET = $(TEST_DIR)/db_test
 
-# 服务器程序
-SERVER_SRCS = src/server/main.c src/server/ecn_server.c src/crypto/ecn_crypto.c src/db/ecn_db.c
-SERVER_OBJS = $(SERVER_SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-SERVER_TARGET = $(BIN_DIR)/ecn_server
+# GUI 目标
+GUI_TARGET = $(BIN_DIR)/ecn-gui
 
-# 默认目标
-all: directories $(TARGET) $(CRYPTO_TEST_TARGET) $(DB_TEST_TARGET) $(SERVER_TARGET)
+.PHONY: all clean gui test
 
-# 创建必要的目录
+all: directories $(SERVER_TARGET) $(CRYPTO_TEST_TARGET) $(DB_TEST_TARGET) gui
+
+# 创建目录
 directories:
 	@mkdir -p $(OBJ_DIR)/crypto
 	@mkdir -p $(OBJ_DIR)/db
+	@mkdir -p $(OBJ_DIR)/server
 	@mkdir -p $(BIN_DIR)
 	@mkdir -p $(TEST_DIR)
 
 # 编译规则
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(dir $@)
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# 链接主程序
-$(TARGET): $(MAIN_OBJS)
-	$(CC) $(MAIN_OBJS) -o $(TARGET) $(LDFLAGS)
-
-# 链接加密测试程序
-$(CRYPTO_TEST_TARGET): $(CRYPTO_TEST_OBJS)
-	$(CC) $(CRYPTO_TEST_OBJS) -o $(CRYPTO_TEST_TARGET) $(LDFLAGS)
-
-# 链接数据库测试程序
-$(DB_TEST_TARGET): $(DB_TEST_OBJS)
-	$(CC) $(DB_TEST_OBJS) -o $(DB_TEST_TARGET) $(LDFLAGS)
-
-# 链接服务器程序
+# 链接规则
 $(SERVER_TARGET): $(SERVER_OBJS)
-	$(CC) $(SERVER_OBJS) -o $(SERVER_TARGET) $(LDFLAGS)
+	$(CC) $^ -o $@ $(LDFLAGS)
 
-# 运行所有测试
+$(CRYPTO_TEST_TARGET): $(CRYPTO_TEST_OBJS)
+	$(CC) $^ -o $@ $(LDFLAGS)
+
+$(DB_TEST_TARGET): $(DB_TEST_OBJS)
+	$(CC) $^ -o $@ $(LDFLAGS)
+
+# GUI 构建规则
+gui: directories
+	@echo "Building GUI..."
+	cd src/gui && qmake ECN.pro -o Makefile && make
+	@if [ -f src/gui/ECN ]; then \
+		cp src/gui/ECN $(BIN_DIR)/ecn-gui; \
+		echo "GUI build successful"; \
+	else \
+		echo "GUI build failed"; \
+		exit 1; \
+	fi
+
+# 测试规则
 test: $(CRYPTO_TEST_TARGET) $(DB_TEST_TARGET)
-	./$(CRYPTO_TEST_TARGET)
-	./$(DB_TEST_TARGET)
-
-# 运行加密测试
-test-crypto: $(CRYPTO_TEST_TARGET)
-	./$(CRYPTO_TEST_TARGET)
-
-# 运行数据库测试
-test-db: $(DB_TEST_TARGET)
-	./$(DB_TEST_TARGET)
+	$(CRYPTO_TEST_TARGET)
+	$(DB_TEST_TARGET)
 
 # 清理规则
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 	rm -f test.db
-
-# 安装规则
-install: all
-	install -m 755 $(TARGET) /usr/local/bin/
-
-.PHONY: all clean install directories test test-crypto test-db
+	cd src/gui && if [ -f Makefile ]; then make clean; rm -f Makefile; fi

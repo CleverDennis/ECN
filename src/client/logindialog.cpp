@@ -7,6 +7,22 @@
 #include <QMessageBox>
 #include <QCryptographicHash>
 #include "../../include/ecn_crypto.h"
+#include <QTcpSocket>
+#include <QDataStream>
+#include <QDebug>
+
+// 服务器地址和端口
+#define ECN_SERVER_HOST "localhost"
+#define ECN_SERVER_PORT 8443
+
+// 消息类型
+#define ECN_MSG_REGISTER 1
+#define ECN_MSG_LOGIN 2
+
+// 注册请求结构体长度
+#define ECN_REGISTER_REQ_LEN (32+64+65)
+// 登录请求结构体长度
+#define ECN_LOGIN_REQ_LEN (32+64)
 
 LoginDialog::LoginDialog(QWidget *parent)
     : QWidget(parent)
@@ -96,19 +112,62 @@ void LoginDialog::onLoginClicked()
 {
     QString username = usernameEdit->text();
     QString password = passwordEdit->text();
-    
-    // 生成随机盐值（在实际应用中，应该从服务器获取存储的盐值）
-    uint8_t salt[16];
-    // TODO: 从服务器获取用户的盐值
-    
-    // 计算密码哈希
-    QByteArray passwordHash = calculatePasswordHash(password, QByteArray((char*)salt, 16));
-    
-    // TODO: 发送登录请求到服务器
-    // 临时模拟登录成功
-    QByteArray sessionToken = QByteArray(64, 'A');  // 临时会话令牌
-    emit loginSuccess(username, sessionToken);
-    
+
+    // 构造登录负载
+    QByteArray payload;
+    payload.append(username.toUtf8().leftJustified(32, '\0', true));
+    payload.append(password.toUtf8().leftJustified(64, '\0', true));
+
+    // 构造消息头（小端）
+    QByteArray header;
+    QDataStream ds(&header, QIODevice::WriteOnly);
+    ds.setByteOrder(QDataStream::LittleEndian);
+    ds << (quint8)1; // version
+    ds << (quint8)ECN_MSG_LOGIN; // type
+    ds << (quint16)payload.size(); // payload_len
+    header.append(QByteArray(64, '\0'));
+
+    // 发送到服务器
+    QTcpSocket sock;
+    sock.connectToHost(ECN_SERVER_HOST, ECN_SERVER_PORT);
+    if (!sock.waitForConnected(2000)) {
+        QMessageBox::critical(this, tr("Error"), tr("Failed to connect to server."));
+        return;
+    }
+    sock.write(header + payload);
+    sock.flush();
+    if (!sock.waitForReadyRead(2000)) {
+        QMessageBox::critical(this, tr("Error"), tr("No response from server."));
+        sock.disconnectFromHost();
+        return;
+    }
+    QByteArray respHeader = sock.read(68);
+    if (respHeader.size() < 68) {
+        QMessageBox::critical(this, tr("Error"), tr("Invalid response header."));
+        sock.disconnectFromHost();
+        return;
+    }
+    QDataStream respStream(respHeader);
+    respStream.setByteOrder(QDataStream::LittleEndian);
+    quint8 r_version, r_type;
+    quint16 r_payload_len;
+    respStream >> r_version >> r_type >> r_payload_len;
+    respStream.skipRawData(64);
+    QByteArray respPayload = sock.read(r_payload_len);
+    if (respPayload.size() < r_payload_len) {
+        QMessageBox::critical(this, tr("Error"), tr("Invalid response payload."));
+        sock.disconnectFromHost();
+        return;
+    }
+    quint8 error_code = (quint8)respPayload[0];
+    if (error_code == 0) {
+        // 登录成功，提取会话令牌
+        QByteArray sessionToken = respPayload.mid(5, 64); // 5字节后是token
+        emit loginSuccess(username, sessionToken);
+    } else {
+        QMessageBox::warning(this, tr("Error"), tr("Login failed. Error code: %1").arg(error_code));
+    }
+    sock.disconnectFromHost();
     clearInputs();
 }
 
@@ -116,18 +175,7 @@ void LoginDialog::onRegisterClicked()
 {
     QString username = usernameEdit->text();
     QString password = passwordEdit->text();
-    
-    // 生成随机盐值
-    uint8_t salt[16];
-    if (!RAND_bytes(salt, sizeof(salt))) {
-        QMessageBox::critical(this, tr("Error"),
-                            tr("Failed to generate random salt."));
-        return;
-    }
-    
-    // 计算密码哈希
-    QByteArray passwordHash = calculatePasswordHash(password, QByteArray((char*)salt, 16));
-    
+
     // 生成SM2密钥对
     uint8_t publicKey[65];
     uint8_t privateKey[32];
@@ -136,12 +184,61 @@ void LoginDialog::onRegisterClicked()
                             tr("Failed to generate SM2 key pair."));
         return;
     }
-    
-    // TODO: 发送注册请求到服务器
-    // 临时显示成功消息
-    QMessageBox::information(this, tr("Success"),
-                           tr("Registration successful. Please login."));
-    
+
+    // 构造注册负载
+    QByteArray payload;
+    payload.append(username.toUtf8().leftJustified(32, '\0', true));
+    payload.append(password.toUtf8().leftJustified(64, '\0', true));
+    payload.append(QByteArray((const char*)publicKey, 65));
+
+    // 构造消息头（小端）
+    QByteArray header;
+    QDataStream ds(&header, QIODevice::WriteOnly);
+    ds.setByteOrder(QDataStream::LittleEndian);
+    ds << (quint8)1; // version
+    ds << (quint8)ECN_MSG_REGISTER; // type
+    ds << (quint16)payload.size(); // payload_len
+    header.append(QByteArray(64, '\0'));
+
+    // 发送到服务器
+    QTcpSocket sock;
+    sock.connectToHost(ECN_SERVER_HOST, ECN_SERVER_PORT);
+    if (!sock.waitForConnected(2000)) {
+        QMessageBox::critical(this, tr("Error"), tr("Failed to connect to server."));
+        return;
+    }
+    sock.write(header + payload);
+    sock.flush();
+    if (!sock.waitForReadyRead(2000)) {
+        QMessageBox::critical(this, tr("Error"), tr("No response from server."));
+        sock.disconnectFromHost();
+        return;
+    }
+    QByteArray respHeader = sock.read(68);
+    if (respHeader.size() < 68) {
+        QMessageBox::critical(this, tr("Error"), tr("Invalid response header."));
+        sock.disconnectFromHost();
+        return;
+    }
+    QDataStream respStream(respHeader);
+    respStream.setByteOrder(QDataStream::LittleEndian);
+    quint8 r_version, r_type;
+    quint16 r_payload_len;
+    respStream >> r_version >> r_type >> r_payload_len;
+    respStream.skipRawData(64);
+    QByteArray respPayload = sock.read(r_payload_len);
+    if (respPayload.size() < r_payload_len) {
+        QMessageBox::critical(this, tr("Error"), tr("Invalid response payload."));
+        sock.disconnectFromHost();
+        return;
+    }
+    quint8 error_code = (quint8)respPayload[0];
+    if (error_code == 0) {
+        QMessageBox::information(this, tr("Success"), tr("Registration successful. Please login."));
+    } else {
+        QMessageBox::warning(this, tr("Error"), tr("Registration failed. Error code: %1").arg(error_code));
+    }
+    sock.disconnectFromHost();
     clearInputs();
 }
 

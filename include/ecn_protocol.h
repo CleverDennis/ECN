@@ -33,7 +33,9 @@ enum ecn_error_code {
     ECN_ERR_INVALID_TOKEN = 3, // 无效的会话令牌
     ECN_ERR_NOT_FOUND = 4,     // 资源不存在
     ECN_ERR_SERVER = 5,        // 服务器内部错误
-    ECN_ERR_INVALID_REQ = 6    // 无效的请求
+    ECN_ERR_INVALID_REQ = 6,   // 无效的请求
+    ECN_ERR_VERSION = 7,       // 协议版本不匹配
+    ECN_ERR_INVALID_SESSION = 8 // 无效的会话
 };
 
 // 消息头部

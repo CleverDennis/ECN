@@ -271,7 +271,6 @@ int ecn_hybrid_decrypt(const uint8_t *encrypted, size_t encrypted_len,
                       uint8_t **decrypted, size_t *decrypted_len) {
     uint8_t sm4_key[16];
     size_t encrypted_key_len;
-    int ret = -1;
 
     // 读取加密的密钥长度
     if (encrypted_len < 4) {
