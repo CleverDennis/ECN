@@ -1,0 +1,110 @@
+[
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++  -I/home/dennis/ECN/build/ecn_server_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -o CMakeFiles/ecn_server.dir/ecn_server_autogen/mocs_compilation.cpp.o -c /home/dennis/ECN/build/ecn_server_autogen/mocs_compilation.cpp",
+  "file": "/home/dennis/ECN/build/ecn_server_autogen/mocs_compilation.cpp",
+  "output": "CMakeFiles/ecn_server.dir/ecn_server_autogen/mocs_compilation.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_server_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_server.dir/src/main.c.o -c /home/dennis/ECN/src/main.c",
+  "file": "/home/dennis/ECN/src/main.c",
+  "output": "CMakeFiles/ecn_server.dir/src/main.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_server_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_server.dir/src/crypto/ecn_crypto.c.o -c /home/dennis/ECN/src/crypto/ecn_crypto.c",
+  "file": "/home/dennis/ECN/src/crypto/ecn_crypto.c",
+  "output": "CMakeFiles/ecn_server.dir/src/crypto/ecn_crypto.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_server_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_server.dir/src/db/ecn_db.c.o -c /home/dennis/ECN/src/db/ecn_db.c",
+  "file": "/home/dennis/ECN/src/db/ecn_db.c",
+  "output": "CMakeFiles/ecn_server.dir/src/db/ecn_db.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_server_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_server.dir/src/server/ecn_server.c.o -c /home/dennis/ECN/src/server/ecn_server.c",
+  "file": "/home/dennis/ECN/src/server/ecn_server.c",
+  "output": "CMakeFiles/ecn_server.dir/src/server/ecn_server.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -o CMakeFiles/ecn_test.dir/ecn_test_autogen/mocs_compilation.cpp.o -c /home/dennis/ECN/build/ecn_test_autogen/mocs_compilation.cpp",
+  "file": "/home/dennis/ECN/build/ecn_test_autogen/mocs_compilation.cpp",
+  "output": "CMakeFiles/ecn_test.dir/ecn_test_autogen/mocs_compilation.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_test.dir/src/test/test_main.c.o -c /home/dennis/ECN/src/test/test_main.c",
+  "file": "/home/dennis/ECN/src/test/test_main.c",
+  "output": "CMakeFiles/ecn_test.dir/src/test/test_main.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_test.dir/src/test/test_crypto.c.o -c /home/dennis/ECN/src/test/test_crypto.c",
+  "file": "/home/dennis/ECN/src/test/test_crypto.c",
+  "output": "CMakeFiles/ecn_test.dir/src/test/test_crypto.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_test.dir/src/test/test_server.c.o -c /home/dennis/ECN/src/test/test_server.c",
+  "file": "/home/dennis/ECN/src/test/test_server.c",
+  "output": "CMakeFiles/ecn_test.dir/src/test/test_server.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_test.dir/src/crypto/ecn_crypto.c.o -c /home/dennis/ECN/src/crypto/ecn_crypto.c",
+  "file": "/home/dennis/ECN/src/crypto/ecn_crypto.c",
+  "output": "CMakeFiles/ecn_test.dir/src/crypto/ecn_crypto.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_test.dir/src/db/ecn_db.c.o -c /home/dennis/ECN/src/db/ecn_db.c",
+  "file": "/home/dennis/ECN/src/db/ecn_db.c",
+  "output": "CMakeFiles/ecn_test.dir/src/db/ecn_db.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/gcc  -I/home/dennis/ECN/build/ecn_test_autogen/include -I/home/dennis/ECN/include -I/usr/include/x86_64-linux-gnu/qt5 -I/usr/include/x86_64-linux-gnu/qt5/QtCore -I/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -I/usr/include/x86_64-linux-gnu/qt5/QtWidgets -I/usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu11 -o CMakeFiles/ecn_test.dir/src/server/ecn_server.c.o -c /home/dennis/ECN/src/server/ecn_server.c",
+  "file": "/home/dennis/ECN/src/server/ecn_server.c",
+  "output": "CMakeFiles/ecn_test.dir/src/server/ecn_server.c.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/home/dennis/ECN/build/ecn_client_autogen/include -I/home/dennis/ECN/include -isystem /usr/include/x86_64-linux-gnu/qt5 -isystem /usr/include/x86_64-linux-gnu/qt5/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt5/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -fPIC -o CMakeFiles/ecn_client.dir/ecn_client_autogen/mocs_compilation.cpp.o -c /home/dennis/ECN/build/ecn_client_autogen/mocs_compilation.cpp",
+  "file": "/home/dennis/ECN/build/ecn_client_autogen/mocs_compilation.cpp",
+  "output": "CMakeFiles/ecn_client.dir/ecn_client_autogen/mocs_compilation.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/home/dennis/ECN/build/ecn_client_autogen/include -I/home/dennis/ECN/include -isystem /usr/include/x86_64-linux-gnu/qt5 -isystem /usr/include/x86_64-linux-gnu/qt5/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt5/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -fPIC -o CMakeFiles/ecn_client.dir/src/client/main.cpp.o -c /home/dennis/ECN/src/client/main.cpp",
+  "file": "/home/dennis/ECN/src/client/main.cpp",
+  "output": "CMakeFiles/ecn_client.dir/src/client/main.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/home/dennis/ECN/build/ecn_client_autogen/include -I/home/dennis/ECN/include -isystem /usr/include/x86_64-linux-gnu/qt5 -isystem /usr/include/x86_64-linux-gnu/qt5/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt5/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -fPIC -o CMakeFiles/ecn_client.dir/src/client/mainwindow.cpp.o -c /home/dennis/ECN/src/client/mainwindow.cpp",
+  "file": "/home/dennis/ECN/src/client/mainwindow.cpp",
+  "output": "CMakeFiles/ecn_client.dir/src/client/mainwindow.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/home/dennis/ECN/build/ecn_client_autogen/include -I/home/dennis/ECN/include -isystem /usr/include/x86_64-linux-gnu/qt5 -isystem /usr/include/x86_64-linux-gnu/qt5/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt5/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -fPIC -o CMakeFiles/ecn_client.dir/src/client/logindialog.cpp.o -c /home/dennis/ECN/src/client/logindialog.cpp",
+  "file": "/home/dennis/ECN/src/client/logindialog.cpp",
+  "output": "CMakeFiles/ecn_client.dir/src/client/logindialog.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/home/dennis/ECN/build/ecn_client_autogen/include -I/home/dennis/ECN/include -isystem /usr/include/x86_64-linux-gnu/qt5 -isystem /usr/include/x86_64-linux-gnu/qt5/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt5/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -fPIC -o CMakeFiles/ecn_client.dir/src/client/notelistwidget.cpp.o -c /home/dennis/ECN/src/client/notelistwidget.cpp",
+  "file": "/home/dennis/ECN/src/client/notelistwidget.cpp",
+  "output": "CMakeFiles/ecn_client.dir/src/client/notelistwidget.cpp.o"
+},
+{
+  "directory": "/home/dennis/ECN/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/home/dennis/ECN/build/ecn_client_autogen/include -I/home/dennis/ECN/include -isystem /usr/include/x86_64-linux-gnu/qt5 -isystem /usr/include/x86_64-linux-gnu/qt5/QtCore -isystem /usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt5/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt5/QtGui -g -std=gnu++17 -fPIC -o CMakeFiles/ecn_client.dir/src/client/noteeditwidget.cpp.o -c /home/dennis/ECN/src/client/noteeditwidget.cpp",
+  "file": "/home/dennis/ECN/src/client/noteeditwidget.cpp",
+  "output": "CMakeFiles/ecn_client.dir/src/client/noteeditwidget.cpp.o"
+}
+]

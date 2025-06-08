@@ -1,0 +1,132 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "ECN",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_client::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_client-Debug-126cf0eab1f31ab11c27.json",
+					"name" : "ecn_client",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_client_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_client_autogen-Debug-935526bb0591fe82bf2e.json",
+					"name" : "ecn_client_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_client_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_client_autogen_timestamp_deps-Debug-495de35c555808d2cbca.json",
+					"name" : "ecn_client_autogen_timestamp_deps",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_server::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_server-Debug-88411e67e9662bbaba43.json",
+					"name" : "ecn_server",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_server_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_server_autogen-Debug-e24c298b5bec764cbbb3.json",
+					"name" : "ecn_server_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_server_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_server_autogen_timestamp_deps-Debug-7f70cdb90f73494db012.json",
+					"name" : "ecn_server_autogen_timestamp_deps",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_test::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_test-Debug-8ac01c2ff6293e28f9e8.json",
+					"name" : "ecn_test",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_test_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_test_autogen-Debug-8551c77aa6f4f281a07b.json",
+					"name" : "ecn_test_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ecn_test_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ecn_test_autogen_timestamp_deps-Debug-db1f1f714fec82e24cfc.json",
+					"name" : "ecn_test_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/dennis/ECN/build",
+		"source" : "/home/dennis/ECN"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}
